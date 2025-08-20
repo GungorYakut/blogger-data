@@ -1,12 +1,16 @@
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
+const fetch = require('node-fetch'); // npm install node-fetch
+const bodyParser = require('body-parser');
+
 const app = express();
-app.use(express.json());
+app.use(bodyParser.json());
 
-const DATA_FILE = path.join(__dirname, 'data.json');
+const owner = 'GungorYakut';
+const repo = 'blogger-data';
+const path = 'data.json';
+const token = process.env.GITHUB_TOKEN; // Render environment variable
 
-// Veriyi normalize eden yardımcı fonksiyon
+// Normalize helper
 function normalizeData(data) {
   return data.map(item => ({
     nick: item.nick || item.Nick || "",
@@ -14,33 +18,53 @@ function normalizeData(data) {
   }));
 }
 
-// data.json dosyasını geri ver
-app.get('/data.json', (req, res) => {
-  fs.readFile(DATA_FILE, 'utf8', (err, data) => {
-    if (err) {
-      return res.status(500).json({ error: 'Veri okunamadı' });
-    }
-    try {
-      const json = JSON.parse(data);
-      res.json(normalizeData(json)); // her zaman normalize edilmiş döner
-    } catch (e) {
-      res.status(500).json({ error: 'JSON hatalı' });
-    }
-  });
+// GET /data.json
+app.get('/data.json', async (req, res) => {
+  try {
+    const fileRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
+      headers: { 'Authorization': `token ${token}`, 'User-Agent': 'BloggerApp' }
+    });
+    const fileData = await fileRes.json();
+    const content = Buffer.from(fileData.content, 'base64').toString('utf8');
+    const json = JSON.parse(content);
+    res.json(normalizeData(json));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// data.json dosyasını güncelle
-app.post('/push', (req, res) => {
-  const normalized = normalizeData(req.body);
+// POST /push
+app.post('/push', async (req, res) => {
+  try {
+    const jsonData = normalizeData(req.body);
 
-  fs.writeFile(DATA_FILE, JSON.stringify(normalized, null, 2), 'utf8', err => {
-    if (err) {
-      return res.status(500).json({ error: 'Veri yazılamadı' });
-    }
-    res.json({ success: true, message: 'Veri güncellendi!' });
-  });
+    // GitHub dosya sha al
+    const fileRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
+      headers: { 'Authorization': `token ${token}`, 'User-Agent': 'BloggerApp' }
+    });
+    const fileData = await fileRes.json();
+    const sha = fileData.sha;
+
+    // Yeni içerik
+    const content = Buffer.from(JSON.stringify(jsonData, null, 2)).toString('base64');
+
+    // GitHub PUT
+    const pushRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
+      method: 'PUT',
+      headers: { 'Authorization': `token ${token}`, 'User-Agent': 'BloggerApp', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: 'Update via Blogger page',
+        content: content,
+        sha: sha
+      })
+    });
+
+    const result = await pushRes.json();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// Render dinleme portu
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
