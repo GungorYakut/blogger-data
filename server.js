@@ -1,23 +1,32 @@
 const express = require('express');
 const fetch = require('node-fetch'); // npm install node-fetch
+
 const app = express();
 app.use(express.json());
 
-const token = process.env.GITHUB_TOKEN || 'YOUR_PERSONAL_ACCESS_TOKEN'; 
+// Render'da Environment Variables kısmına ekle:
+// Key: GITHUB_TOKEN  Value: senin GitHub tokenin
+const token = process.env.GITHUB_TOKEN;
+
 const owner = 'GungorYakut';
 const repo = 'blogger-data';
-const filePath = 'data.json';
+const path = 'data.json';
 
-// GitHub’dan data.json oku
+// data.json içeriğini oku
 app.get('/data.json', async (req, res) => {
   try {
-    const fileRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`, {
-      headers: { 
+    const fileRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
+      headers: {
         'Authorization': `token ${token}`,
         'User-Agent': 'BloggerScript'
       }
     });
     const fileData = await fileRes.json();
+
+    if (!fileData.content) {
+      return res.status(500).json({ error: 'Veri okunamadı' });
+    }
+
     const content = Buffer.from(fileData.content, 'base64').toString('utf8');
     res.setHeader('Content-Type', 'application/json');
     res.send(content);
@@ -26,15 +35,15 @@ app.get('/data.json', async (req, res) => {
   }
 });
 
-// GitHub’a push et (data.json güncelle)
+// data.json dosyasını güncelle
 app.post('/push', async (req, res) => {
   const jsonData = req.body;
   if (!jsonData) return res.status(400).json({ error: 'Geçersiz veri' });
 
   try {
-    // Önce mevcut dosyanın SHA değerini al
-    const fileRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`, {
-      headers: { 
+    // Mevcut SHA değerini al
+    const fileRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
+      headers: {
         'Authorization': `token ${token}`,
         'User-Agent': 'BloggerScript'
       }
@@ -42,13 +51,13 @@ app.post('/push', async (req, res) => {
     const fileData = await fileRes.json();
     const sha = fileData.sha;
 
-    // Yeni içerik (base64)
+    // Yeni içerik base64'e çevrilir
     const content = Buffer.from(JSON.stringify(jsonData, null, 2)).toString('base64');
 
-    // GitHub’a yaz
-    const pushRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`, {
+    // GitHub'a yaz
+    const pushRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
       method: 'PUT',
-      headers: { 
+      headers: {
         'Authorization': `token ${token}`,
         'User-Agent': 'BloggerScript',
         'Content-Type': 'application/json'
@@ -67,5 +76,6 @@ app.post('/push', async (req, res) => {
   }
 });
 
+// Render dinleme portu
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
