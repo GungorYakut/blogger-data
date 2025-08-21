@@ -1,3 +1,6 @@
+const cors = require('cors');
+app.use(cors());
+
 const express = require('express');
 const fetch = require('node-fetch'); // npm install node-fetch
 const bodyParser = require('body-parser');
@@ -68,3 +71,4 @@ app.post('/push', async (req, res) => {
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
