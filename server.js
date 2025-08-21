@@ -1,19 +1,18 @@
-const cors = require('cors');
-app.use(cors());
-
 const express = require('express');
-const fetch = require('node-fetch'); // npm install node-fetch
+const cors = require('cors');
+const fetch = require('node-fetch');
 const bodyParser = require('body-parser');
 
 const app = express();
+app.use(cors());
 app.use(bodyParser.json());
 
 const owner = 'GungorYakut';
 const repo = 'blogger-data';
 const path = 'data.json';
-const token = process.env.GITHUB_TOKEN; // Render environment variable
+const token = process.env.GITHUB_TOKEN; // Render ortam değişkeni
 
-// Normalize helper
+// Helper: normalize
 function normalizeData(data) {
   return data.map(item => ({
     nick: item.nick || item.Nick || "",
@@ -41,17 +40,14 @@ app.post('/push', async (req, res) => {
   try {
     const jsonData = normalizeData(req.body);
 
-    // GitHub dosya sha al
     const fileRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
       headers: { 'Authorization': `token ${token}`, 'User-Agent': 'BloggerApp' }
     });
     const fileData = await fileRes.json();
     const sha = fileData.sha;
 
-    // Yeni içerik
     const content = Buffer.from(JSON.stringify(jsonData, null, 2)).toString('base64');
 
-    // GitHub PUT
     const pushRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
       method: 'PUT',
       headers: { 'Authorization': `token ${token}`, 'User-Agent': 'BloggerApp', 'Content-Type': 'application/json' },
@@ -71,4 +67,3 @@ app.post('/push', async (req, res) => {
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
